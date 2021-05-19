@@ -5,6 +5,6 @@ in progress.
 
 ```bash
 clojure -Sdeps \
-  '{:deps {camsaul/cljfmt {:git/url "https://github.com/camsaul/cljfmt.git", :sha "d01a835cb74104fd9cb2f39cb3d4d87c5e8ab52d"}}}' \
-  -M -m cljfmt.main [check|fix] 
+  '{:deps {camsaul/cljfmt {:git/url "https://github.com/camsaul/cljfmt", :sha "ec3884db9b0961c59fd74972c1ca4594f0ab477f"}}}' \
+  -M -m cljfmt.main [check|fix]
 ```
