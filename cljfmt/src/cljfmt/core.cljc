@@ -248,8 +248,30 @@
 (defn- reader-conditional? [zloc]
   (and (reader-macro? zloc) (#{"?" "?@"} (-> zloc z/down token-value str))))
 
+(defn- reader-conditional-form-symbol
+  "Given a zipper pointing to a reader conditional form like
+
+    #?(:clj potemkin.core/defprotocol+ :cljs defprotocol)
+
+  Return the first symbol inside it e.g.
+
+    potemkin.core/defprotocol+"
+  [zloc]
+  (when (reader-conditional? zloc)
+    ;; find the first keyword e.g. `:clj`
+    (when-let [key-loc (z/find (-> zloc z/down z/right z/down)
+                               z/right
+                               #(n/keyword-node? (z/node %)))]
+      ;; now move to the next non-whitespace/non-comment/non-metadata node after
+      ;; the keyword node e.g. `potemkin.core/defprotocol+`.
+      (when-let [value-loc (-> key-loc z/next skip-meta)]
+        (when (token? value-loc)
+          (z/sexpr value-loc))))))
+
 (defn- form-symbol [zloc]
-  (-> zloc z/leftmost token-value))
+  (let [zloc (z/leftmost zloc)]
+    (or (token-value zloc)
+        (reader-conditional-form-symbol zloc))))
 
 (defn- index-matches-top-argument? [zloc depth idx]
   (and (> depth 0)
