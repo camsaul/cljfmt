@@ -339,11 +339,25 @@
 (defn- make-indenter [[key opts] context]
   (apply some-fn (map (partial indenter-fn key context) opts)))
 
-(defn- indent-order [[key _]]
-  (cond
-    (and (symbol? key) (namespace key)) (str 0 key)
-    (symbol? key) (str 1 key)
-    (pattern? key) (str 2 key)))
+(defn- indent-order [[key [spec-type :as spec]]]
+  (let [depth*    (case spec-type
+                    :inner (let [[_inner depth] spec]
+                             (- 0 depth))
+                    0)
+        key-type* (cond
+                    (qualified-symbol? key) 0
+                    (simple-symbol? key)    1
+                    (pattern? key)          2)]
+    [depth* key-type* (str key)]))
+
+(defn- sorted-indents [indents]
+  (->> indents
+       (mapcat (fn [[k specs]]
+                 (for [spec specs]
+                   [k spec])))
+       (sort-by indent-order)
+       (map (fn [[k spec]]
+              [k [spec]]))))
 
 (defn- custom-indent [zloc indents context]
   (if (empty? indents)
@@ -381,7 +395,7 @@
    (indent form indents alias-map default-options))
   ([form indents alias-map opts]
    (let [ns-name (find-namespace (z/of-node form))
-         sorted-indents (sort-by indent-order indents)
+         sorted-indents (sorted-indents indents)
          context (merge (select-keys opts [:function-arguments-indentation])
                         {:alias-map alias-map
                          :ns-name ns-name})]
