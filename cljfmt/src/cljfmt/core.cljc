@@ -568,10 +568,43 @@
 #?(:clj
    (defn- as-zloc->alias-mapping [as-zloc]
      (let [alias             (some-> as-zloc z/right z/sexpr)
-           current-namespace (some-> as-zloc z/leftmost z/sexpr)
+           ;; `leftmost` might be an `uneval` node e.g. in
+           ;;
+           ;;    [#_{:clj-kondo/ignore [:x]} a.namespace :as n]
+           ;;
+           ;; so look for the first symbol node. The token can also have
+           ;; metadata on it e.g.
+           ;;
+           ;;    [^{:clj-kondo/ignore [:x]} a.namespace :as n]
+           ;;
+           ;; which is why we need to `skip-meta` in find.
+           current-namespace (some-> as-zloc
+                                     z/leftmost
+                                     (z/find #(n/symbol-node?
+                                               (z/node (skip-meta %))))
+                                     z/sexpr)
            grandparent-node  (some-> as-zloc z/up z/up)
+           ;; For something like
+           ;;
+           ;;    [a [namespace :as n]]
+           ;;
+           ;; `grandparent-node` points to [a [namespace :as n]]. In this case
+           ;; `a` is the parent namespace.
+           ;;
+           ;; But for something like
+           ;;
+           ;;    ^{:x true} [a.namespace :as n]
+           ;;
+           ;; `grandparent-node` points to a `:meta` node e.g.
+           ;;
+           ;;    [<meta: ^{:x true} [a.namespace :as n]> ...]
+           ;;
+           ;; so make sure we're only looking at actual prefix forms like the
+           ;; former by checking whether it's a list or vector
            parent-namespace  (when-not (ns-require-form? grandparent-node)
-                               (first (z/child-sexprs grandparent-node)))]
+                               (when (or (z/vector? grandparent-node)
+                                         (z/list? grandparent-node))
+                                 (first (z/child-sexprs grandparent-node))))]
        (when (and (symbol? alias) (symbol? current-namespace))
          {(str alias) (if parent-namespace
                         (format "%s.%s" parent-namespace current-namespace)
